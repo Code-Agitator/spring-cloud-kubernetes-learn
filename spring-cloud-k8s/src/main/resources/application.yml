@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: kubernetes-hello-world
+  cloud:
+    kubernetes:
+      config:
+        enable-api: true
+        enabled: true
+        sources:
+          - name: application.yml

@@ -1,0 +1,6 @@
+metadata:
+  name: ${project.artifactId}
+data:
+  application.yml: |-
+    greeting:
+      message: Say Hello from one

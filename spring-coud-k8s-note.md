@@ -39,11 +39,11 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 kubectl version
 ```
 
-## Hello World (简单的服务发现)
+## 服务注册与发现
 
-由于spring-cloud-kubenetes官方文档用的是maven的fabric8插件打包部署到kubenetes平台，但是这个插件已经过时，不再维护，所以改用jkube插件,jkube可以通过xml配置生成对应的k8s部署yaml配置，并自动apply到kubenetes平台，具体文档
-
-https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
+> 由于spring-cloud-kubenetes官方文档用的是maven的fabric8插件打包部署到kubenetes平台，但是这个插件已经过时，不再维护，所以改用jkube插件,jkube可以通过xml配置生成对应的k8s部署yaml配置，并自动apply到kubenetes平台，具体文档
+>
+> https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
 
 ### 新建一个maven项目
 
@@ -103,10 +103,16 @@ https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
 ```xml
 
     <dependencies>
-        <!--   spring-cloud-kubernetes 服务发现依赖    -->
+          <!--   spring-cloud-kubernetes 服务发现依赖    -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-kubernetes-fabric8-discovery</artifactId>
+            <artifactId>spring-cloud-kubernetes-client-discovery</artifactId>
+        </dependency>
+
+        <!--   spring-cloud-kubernetes configMap依赖    -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-kubernetes-client-config</artifactId>
         </dependency>
 
         <dependency>
@@ -142,6 +148,41 @@ https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
         </dependency>
 
     </dependencies>
+```
+
+#### 新建入口类 App.java
+
+```java
+@SpringBootApplication
+@EnableDiscoveryClient
+@RestController
+public class App {
+    @Resource
+    DiscoveryClient discoveryClient;
+
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+
+    @GetMapping("/")
+    public String hello() {
+        return "Hello World";
+    }
+
+    @GetMapping("/services")
+    public List<String> getServices() {
+        return discoveryClient.getServices();
+    }
+}
+
+```
+
+#### 指定application name  application.yml
+
+```yaml
+spring:
+  application:
+    name: kubernetes-hello-world
 ```
 
 #### 添加打包插件
@@ -182,10 +223,11 @@ https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
                                         <testProject>spring-boot-sample</testProject>
                                     </all>
                                 </labels>
+                                <!-- 这里指定了一个service account资源，后续需要 -->
                                 <serviceAccounts>
                                     <serviceAccount>
-                                        <name>spring</name>
-                                        <deploymentRef>kubernetes-hello-world</deploymentRef>
+                                        <name>spring</name>		 
+                                        <deploymentRef>${project.artifactId}</deploymentRef>
                                     </serviceAccount>
                                 </serviceAccounts>
                             </resources>
@@ -228,7 +270,13 @@ https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
     </profiles>
 ```
 
-部分命令介绍：(这里前两个 不说了 玩最后一个)
+> 部分命令介绍：(这里前两个 不说了 玩最后一个)
+>
+> PS: 由于使用的是本地docker仓库，需要执行以下命令，才能是minikube可以从本地仓库拉取镜像，每次都需要在部署的终端下执行
+
+```shell
+eval $(minikube docker-env)
+```
 
 * 生成k8s描述文件
 
@@ -248,15 +296,386 @@ mvn package k8s:build -Pkubernetes
 mvn k8s:deploy -Pkubernetes
 ```
 
-* 验证
+* 部署成功后
 
+```shell
+[INFO] --- kubernetes-maven-plugin:1.8.0:deploy (default-cli) @ spring-cloud-k8s ---
+[INFO] k8s: Using Kubernetes at https://127.0.0.1:59152/ in namespace null with manifest /mnt/d/items/spring-cloud-kubernetes-learn/spring-cloud-k8s/target/classes/META-INF/jkube/kubernetes.yml 
+[INFO] k8s: Updating a ServiceAccount from kubernetes.yml
+[INFO] k8s: Updated ServiceAccount: spring-cloud-k8s/target/jkube/applyJson/default/serviceaccount-spring.json
+[INFO] k8s: Creating a Service from kubernetes.yml namespace default name spring-cloud-k8s
+[INFO] k8s: Created Service: spring-cloud-k8s/target/jkube/applyJson/default/service-spring-cloud-k8s.json
+[INFO] k8s: Creating a Deployment from kubernetes.yml namespace default name spring-cloud-k8s
+[INFO] k8s: Created Deployment: spring-cloud-k8s/target/jkube/applyJson/default/deployment-spring-cloud-k8s.json
+[INFO] k8s: HINT: Use the command `kubectl get pods -w` to watch your pods start up
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:02 min
+[INFO] Finished at: 2022-08-22T09:55:54+08:00
+[INFO] ------------------------------------------------------------------------
 ```
+
+* 查看pod
+
+```shell
+kubectl get pods
+#NAME                                READY   STATUS    RESTARTS   AGE
+#spring-cloud-k8s-86bc95d68c-c5btk   1/1     Running   0          21s
 ```
 
-#### Jkube扩展
+* 转发端口到pod
 
- ```xml
- ```
+```shell
+# spring-cloud-k8s-86bc95d68c-c5btk 为上述对应pod的NAME
+kubectl port-forward spring-cloud-k8s-86bc95d68c-c5btk 8080:8080
+```
+
+* 请求本地8080端口 localhost:8080 
+
+```shell
+curl localhost:8080
+#Hello World
+curl localhost:8080/service
+#{"timestamp":"2022-08-22T02:07:00.302+00:00","status":500,"error":"Internal Server Error","message":"","path":"/services"}
+```
+
+> 这里出现了500错误是因为，我们一开始设置的service account 他会在k8s平台自动创建一个spring账号，但是他并没有相应的权限去获取k8s平台的信息，所以没办法获取的服务的信息，此时我们为spring赋予只读权限，具体日志可以通过一下命令查看，不过不建议，因为没有权限的时候他会一直报错，日志无限增长
+
+```shell
+kubectl logs spring-cloud-k8s-86bc95d68c-c5btk
+```
+
+* 为spring账户添加权限
+
+```shell
+#kubectl create serviceaccount spring # 这是创建spring账户的命令 jkube已经可以通过配置创建可以不执行
+#创建一个clusterrolebinding 设置clusterrole为view只读 指定serviceaccount 
+kubectl create clusterrolebinding spring-api --clusterrole=view --serviceaccount=default:spring --namespace=default
+```
+
+* 查询平台服务
+
+```shell
+curl localhost:8080/services
+# ["hello-world-example","kubernetes","kubernetes-hello-world","spring-cloud-k8s"]
+```
+
+> 到这里就成功将spring Boot部署到k8s平台并且完成服务发现
+
+### ConfigMap 配置管理（k8s原生）
+
+> ps: 官方文档使用的工具是Fabric8，本文档用的是jukube 所以这里没有和官方文档的教程走
+
+#### 改写App.java入口类
+
+```java
+@Value("${greeting.message}")
+String message;
+
+@GetMapping("/config")
+public String  getMessage(){
+    return message;
+}
+```
+
+#### 新建文件src/jkube/configmap.xml
+
+```yaml
+metadata:
+  name: ${project.artifactId}
+data:
+  application.yml: |-
+    greeting:
+      message: Say Hello to the World
+```
+
+#### 新建文件src/jkube/deployment.yml
+
+```yaml
+metadata:
+  annotations:
+    configmap.jkube.io/update-on-change: ${project.artifactId}
+spec:
+  replicas: 1
+  template:
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: ${project.artifactId}
+            items:
+              - key: application.yml
+                path: application.yml
+      containers:
+        - volumeMounts:
+            - name: config
+              mountPath: /deployments/config
+      serviceAccount: spring
+```
+
+#### 部署到平台后查看新建的configMap
+
+```shell
+mvn k8s:deploy -Pkubernetes
+
+kubectl get cm
+# NAME               DATA   AGE
+# kube-root-ca.crt   1      3d1h
+# spring-cloud-k8s   1      95m
+```
+
+#### 转发端口 请求查看
+
+```shell
+kubectl port-forward spring-cloud-k8s-86bc95d68c-c5btk 8080:8080
+
+curl localhost:8080/config
+# Say Hello to the World
+```
+
+### 查看Pod信息
+
+> 当SpringBoot部署到K8s平台后，Spring boot 通过spring-actuator 获取一些pod的信息
+
+```shell
+curl localhost:8080/actuator/info
+
+# {
+#  "kubernetes": {
+#    "nodeName": "minikube",
+#    "podIp": "172.17.0.4",
+#    "hostIp": "192.168.49.2",
+#    "namespace": "default",
+#    "podName": "spring-cloud-k8s-858d76bc79-z4kkq",
+#    "serviceAccount": "spring",
+#    "inside": true
+#  }
+# }
+```
+
+> 上述信息可以通过 **management.info.kubernetes.enabled** 进行关闭(false)
+
+### Leader选举
+
+> 选举需要依赖 fabric8
+>
+> 而且不能同时出现 spring-cloud-starter-client-discover 因为两个都对服务发现实现了，同时引入会出现bean的重复定义抛出异常
+>
+> 选举机制：只有一个实例成为 leader，当leader挂了之后上一个leader结点会触发 **OnRevokedEvent** 事件，然后所有的节点进行竞争，成功选举为 leader的节点会触发 **OnGrantedEvent**
+
+#### 新建一个新的子模块 spring-cloud-leader
+
+```xml
+   <dependencies>
+        <!--        引入相关依赖-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-kubernetes-fabric8</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-kubernetes-fabric8-leader</artifactId>
+        </dependency>
+
+        <!--        通用依赖-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jolokia</groupId>
+            <artifactId>jolokia-core</artifactId>
+        </dependency>
+    </dependencies>
+<build>
+    ... 参考上文
+</build>
+<profiles>
+     <profile>
+         ... 参考上文
+         <build>
+              <configuration>
+                     <resources>
+                          <serviceAccounts>
+                                    <serviceAccount>
+                                        <!-- 重点 不一样的地方 这里指定的service account不一样了 -->
+                                        <name>spring-leader</name>
+                                        <deploymentRef>${project.artifactId}</deploymentRef>
+                                    </serviceAccount>
+                                </serviceAccounts>
+                  </resources>
+         
+         	</configuration>
+         </build>
+        
+    </profile>
+</profiles>
+```
+
+> 以上pom在配置service account的时候指定了新的，因为原来的sa 只有 view 只读权限，而leader选举是通过K8S的ConfigMap来实现的，所以我们需要给当前项目赋予edit权限，让其有权限去修改configMap
+
+#### 编写LeaderController 已经入口【App.java(单纯的springboot 不需要其他 这里省略)】
+
+```java
+
+@RestController
+public class LeaderController {
+
+
+    private final String host;
+
+    @Value("${spring.cloud.kubernetes.leader.role}")
+    private String role;
+
+    private Context context;
+
+    public LeaderController() throws UnknownHostException {
+        this.host = InetAddress.getLocalHost().getHostName();
+    }
+
+    /**
+     * 获取当前节点状态
+     *
+     * @return info
+     */
+    @GetMapping
+    public String getInfo() {
+        if (this.context == null) {
+            return String.format("I am '%s' but I am not a leader of the '%s'", this.host, this.role);
+        }
+
+        return String.format("I am '%s' and I am the leader of the '%s'", this.host, this.role);
+    }
+
+    /**
+     * 主动下线
+     * @return info about leadership
+     */
+    @PutMapping
+    public ResponseEntity<String> revokeLeadership() {
+        if (this.context == null) {
+            String message = String.format("Cannot revoke leadership because '%s' is not a leader", this.host);
+            return ResponseEntity.badRequest().body(message);
+        }
+
+        this.context.yield();
+
+        String message = String.format("Leadership revoked for '%s'", this.host);
+        return ResponseEntity.ok(message);
+    }
+
+    /**
+     * 被选举为leader事件
+     *
+     * @param event on granted event
+     */
+    @EventListener
+    public void handleEvent(OnGrantedEvent event) {
+        System.out.println(String.format("'%s' leadership granted", event.getRole()));
+        this.context = event.getContext();
+    }
+
+    /**
+     * leader下线事件
+     *
+     * @param event on revoked event
+     */
+    @EventListener
+    public void handleEvent(OnRevokedEvent event) {
+        System.out.println(String.format("'%s' leadership revoked", event.getRole()));
+        this.context = null;
+    }
+
+
+}
+```
+
+#### application.yml
+
+```yaml
+spring:
+  application:
+    name: spring-cloud-leader
+  cloud:
+    kubernetes:
+      leader:
+      	# 用于实现leader选举的configMap名称
+        config-map-name: leader
+        # 当前服务角色
+        role: world
+```
+
+#### 新建service account 并授予edit权限
+
+```shell
+kubectl create serviceaccount spring-leader # 这是创建spring账户的命令 jkube已经可以通过配置创建可以不执行
+kubectl create clusterrolebinding spring-api --clusterrole=edit --serviceaccount=default:spring --namespace=default
+```
+
+#### 部署项目与验证
+
+```shell
+mvn k8s:deploy -Pkubernetes 
+# 部署完成后查看pod是否正常运行
+kubectl get pod
+#NAME                                   READY   STATUS    RESTARTS   AGE 
+#spring-cloud-leader-5bdd657d86-qtch5   1/1     Running   0          27m
+
+# 查看他是否触发了OnGrantedEvent 事件成为了leader
+kubectl logs spring-cloud-leader-5bdd657d86-qtch5 |grep 'leadership'
+#DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} has been granted leadership; context: org.springframework.cloud.kubernetes.commons.leader.LeaderContext@128153a0
+
+# 复制一个节点出来
+kubectl scale --replicas=2 deployment.apps/spring-cloud-leader
+kubectl get pod
+#NAME                                   READY   STATUS    RESTARTS   AGE
+#spring-cloud-leader-5bdd657d86-hvm47   1/1     Running   0          15m
+#spring-cloud-leader-5bdd657d86-qtch5   1/1     Running   0          49m
+
+# 打开两个终端 分别转发两个服务端口
+kubectl port-forward spring-cloud-leader-5bdd657d86-hvm47 8081:8080
+kubectl port-forward spring-cloud-leader-5bdd657d86-hvm47 8080:8080
+
+# 查看两个节点
+curl localhost:8080 
+# I am 'spring-cloud-leader-5bdd657d86-qtch5' and I am the leader of the 'world'
+curl localhost:8081
+# I am 'spring-cloud-leader-5bdd657d86-hvm47' but I am not a leader of the 'world'
+
+# shutdown leader
+curl -X PUT localhost:8080
+# Leadership revoked for 'spring-cloud-leader-5bdd657d86-qtch5'
+# 查看8081 这里是有概率的 我shutdown了很多次8080 8081才抢到
+curl localhost:8081
+# I am 'spring-cloud-leader-5bdd657d86-hvm47' and I am the leader of the 'world'
+
+# 查看多次选举的过程(在我关了两次后 选举leader失败)
+kubectl logs spring-cloud-leader-5bdd657d86-qtch5 | grep leadership
+# DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} has been granted leadership; context
+# DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} leadership has been revoked
+# DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} has been granted leadership; context
+# DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} leadership has been revoked
+# Failure when acquiring leadership for 'DefaultCandidate
+```
+
+#### 
 
 
 
@@ -265,7 +684,5 @@ mvn k8s:deploy -Pkubernetes
 
 
 
-
-eval $(minikube docker-env)
 
 mvn -s "/mnt/d/linux/settings-linux.xml"

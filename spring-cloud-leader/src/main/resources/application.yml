@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: spring-cloud-leader
+  cloud:
+    kubernetes:
+      leader:
+        config-map-name: leader
+        role: world
