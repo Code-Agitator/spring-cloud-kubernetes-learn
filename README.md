@@ -22,8 +22,6 @@ sudo install minikube-linux-amd64 /usr/local/bin/minikube
 minikube start  --image-mirror-country='cn' --kubernetes-version=v1.23.8  --driver=docker
 ```
 
-
-
 ## 安装kubectl 
 
 #### 安装
@@ -41,9 +39,9 @@ kubectl version
 
 ## 服务注册与发现
 
-> 由于spring-cloud-kubenetes官方文档用的是maven的fabric8插件打包部署到kubenetes平台，但是这个插件已经过时，不再维护，所以改用jkube插件,jkube可以通过xml配置生成对应的k8s部署yaml配置，并自动apply到kubenetes平台，具体文档
->
-> https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
+由于spring-cloud-kubenetes官方文档用的是maven的fabric8插件打包部署到kubenetes平台，但是这个插件已经过时，不再维护，所以改用jkube插件,jkube可以通过xml配置生成对应的k8s部署yaml配置，并自动apply到kubenetes平台，具体文档
+
+https://github.com/eclipse/jkube/tree/master/kubernetes-maven-plugin
 
 ### 新建一个maven项目
 
@@ -51,7 +49,7 @@ kubectl version
 #### 略
 ```
 
-### 依赖管理
+#### 依赖管理
 
 ```xml
 <!--版本管理-->
@@ -96,7 +94,7 @@ kubectl version
 </plugins>
 </build>
 ```
-### 新建一个子模块
+#### 新建一个子模块
 
 #### 引入依赖
 
@@ -270,9 +268,9 @@ spring:
     </profiles>
 ```
 
-> 部分命令介绍：(这里前两个 不说了 玩最后一个)
->
-> PS: 由于使用的是本地docker仓库，需要执行以下命令，才能是minikube可以从本地仓库拉取镜像，每次都需要在部署的终端下执行
+部分命令介绍：(这里前两个 不说了 玩最后一个)
+
+PS: 由于使用的是本地docker仓库，需要执行以下命令，才能是minikube可以从本地仓库拉取镜像，每次都需要在部署的终端下执行
 
 ```shell
 eval $(minikube docker-env)
@@ -340,7 +338,7 @@ curl localhost:8080/service
 #{"timestamp":"2022-08-22T02:07:00.302+00:00","status":500,"error":"Internal Server Error","message":"","path":"/services"}
 ```
 
-> 这里出现了500错误是因为，我们一开始设置的service account 他会在k8s平台自动创建一个spring账号，但是他并没有相应的权限去获取k8s平台的信息，所以没办法获取的服务的信息，此时我们为spring赋予只读权限，具体日志可以通过一下命令查看，不过不建议，因为没有权限的时候他会一直报错，日志无限增长
+这里出现了500错误是因为，我们一开始设置的service account 他会在k8s平台自动创建一个spring账号，但是他并没有相应的权限去获取k8s平台的信息，所以没办法获取的服务的信息，此时我们为spring赋予只读权限，具体日志可以通过一下命令查看，不过不建议，因为没有权限的时候他会一直报错，日志无限增长
 
 ```shell
 kubectl logs spring-cloud-k8s-86bc95d68c-c5btk
@@ -361,11 +359,11 @@ curl localhost:8080/services
 # ["hello-world-example","kubernetes","kubernetes-hello-world","spring-cloud-k8s"]
 ```
 
-> 到这里就成功将spring Boot部署到k8s平台并且完成服务发现
+到这里就成功将spring Boot部署到k8s平台并且完成服务发现
 
-### ConfigMap 配置管理（k8s原生）
+## ConfigMap 配置管理（k8s原生）
 
-> ps: 官方文档使用的工具是Fabric8，本文档用的是jukube 所以这里没有和官方文档的教程走
+ps: 官方文档使用的工具是Fabric8，本文档用的是jukube 所以这里没有和官方文档的教程走
 
 #### 改写App.java入口类
 
@@ -434,9 +432,9 @@ curl localhost:8080/config
 # Say Hello to the World
 ```
 
-### 查看Pod信息
+## 查看Pod信息
 
-> 当SpringBoot部署到K8s平台后，Spring boot 通过spring-actuator 获取一些pod的信息
+当SpringBoot部署到K8s平台后，Spring boot 通过spring-actuator 获取一些pod的信息
 
 ```shell
 curl localhost:8080/actuator/info
@@ -454,15 +452,15 @@ curl localhost:8080/actuator/info
 # }
 ```
 
-> 上述信息可以通过 **management.info.kubernetes.enabled** 进行关闭(false)
+上述信息可以通过 **management.info.kubernetes.enabled** 进行关闭(false)
 
-### Leader选举
+## Leader选举
 
-> 选举需要依赖 fabric8
->
-> 而且不能同时出现 spring-cloud-starter-client-discover 因为两个都对服务发现实现了，同时引入会出现bean的重复定义抛出异常
->
-> 选举机制：只有一个实例成为 leader，当leader挂了之后上一个leader结点会触发 **OnRevokedEvent** 事件，然后所有的节点进行竞争，成功选举为 leader的节点会触发 **OnGrantedEvent**
+选举需要依赖 fabric8
+
+而且不能同时出现 spring-cloud-starter-client-discover 因为两个都对服务发现实现了，同时引入会出现bean的重复定义抛出异常
+
+选举机制：只有一个实例成为 leader，当leader挂了之后上一个leader结点会触发 **OnRevokedEvent** 事件，然后所有的节点进行竞争，成功选举为 leader的节点会触发 **OnGrantedEvent**
 
 #### 新建一个新的子模块 spring-cloud-leader
 
@@ -529,9 +527,11 @@ curl localhost:8080/actuator/info
 </profiles>
 ```
 
-> 以上pom在配置service account的时候指定了新的，因为原来的sa 只有 view 只读权限，而leader选举是通过K8S的ConfigMap来实现的，所以我们需要给当前项目赋予edit权限，让其有权限去修改configMap
+以上pom在配置service account的时候指定了新的，因为原来的sa 只有 view 只读权限，而leader选举是通过K8S的ConfigMap来实现的，所以我们需要给当前项目赋予edit权限，让其有权限去修改configMap
 
-#### 编写LeaderController 已经入口【App.java(单纯的springboot 不需要其他 这里省略)】
+#### 编写LeaderController 已经入口
+
+【App.java(单纯的springboot 不需要其他注解 这里省略)】
 
 ```java
 
@@ -651,7 +651,7 @@ kubectl get pod
 
 # 打开两个终端 分别转发两个服务端口
 kubectl port-forward spring-cloud-leader-5bdd657d86-hvm47 8081:8080
-kubectl port-forward spring-cloud-leader-5bdd657d86-hvm47 8080:8080
+kubectl port-forward spring-cloud-leader-5bdd657d86-qtch5 8080:8080
 
 # 查看两个节点
 curl localhost:8080 
@@ -659,14 +659,14 @@ curl localhost:8080
 curl localhost:8081
 # I am 'spring-cloud-leader-5bdd657d86-hvm47' but I am not a leader of the 'world'
 
-# shutdown leader
+# 释放 leader
 curl -X PUT localhost:8080
 # Leadership revoked for 'spring-cloud-leader-5bdd657d86-qtch5'
-# 查看8081 这里是有概率的 我shutdown了很多次8080 8081才抢到
+# 查看8081 这里是有概率的 我释放了很多次8080 8081才抢到
 curl localhost:8081
 # I am 'spring-cloud-leader-5bdd657d86-hvm47' and I am the leader of the 'world'
 
-# 查看多次选举的过程(在我关了两次后 选举leader失败)
+# 查看8080日志多次选举的过程(在我释放了两次后 选举leader失败)
 kubectl logs spring-cloud-leader-5bdd657d86-qtch5 | grep leadership
 # DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} has been granted leadership; context
 # DefaultCandidate{role=world, id=spring-cloud-leader-5bdd657d86-qtch5} leadership has been revoked
@@ -675,9 +675,391 @@ kubectl logs spring-cloud-leader-5bdd657d86-qtch5 | grep leadership
 # Failure when acquiring leadership for 'DefaultCandidate
 ```
 
-#### 
+## loadbalancer and openfeign
+
+#### 新建spring-cloud-balancer模块 
+
+设置为pom 并添加打包插件
+
+```xml
+ <packaging>pom</packaging> 
+<profiles>
+        <profile>
+            <id>kubernetes</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${kubernetes.maven.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>fmp</id>
+                                <goals>
+                                    <goal>resource</goal>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <enricher>
+                                <config>
+                                    <jkube-service>
+                                        <type>NodePort</type>
+                                    </jkube-service>
+                                </config>
+                            </enricher>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+```
+
+#### 新建生产者模块 name-service 依赖以及插件
+
+```xml
+<dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+    </dependencies>
+ <build>
+        <plugins>
+            <plugin>
+                <!--skip deploy -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot-version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.eclipse.jkube</groupId>
+                <artifactId>kubernetes-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>fmp</id>
+                        <goals>
+                            <goal>resource</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+```
+
+#### App.java springboot即可 略
+
+#### NameController.java
+
+```java
+
+@RestController
+public class NameController {
+
+	private static final Logger LOG = LoggerFactory.getLogger(NameController.class);
+
+	private final String hostName = System.getenv("HOSTNAME");
+
+	@GetMapping("/")
+	public String ribbonPing() {
+		LOG.info("Ribbon ping");
+		return hostName;
+	}
+
+	/**
+	 * 返回hostname  并模拟延时
+	 */
+	@GetMapping("/name")
+	public Mono<String> getName(@RequestParam(value = "delay", defaultValue = "0") int delayValue) {
+		LOG.info(String.format("Returning a name '%s' with a delay '%d'", hostName, delayValue));
+		delay(delayValue);
+		return hostName;
+	}
+
+	private void delay(int delayValue) {
+		try {
+			Thread.sleep(delayValue);
+		}
+		catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
+}
+```
+
+#### 新建生产者name-service-api模块
+
+```xml
+  <dependencies>
+      <dependency>
+          <groupId>org.springframework.cloud</groupId>
+          <artifactId>spring-cloud-starter-openfeign</artifactId>
+      </dependency>
+      <dependency>
+          <groupId>io.projectreactor</groupId>
+          <artifactId>reactor-core</artifactId>
+      </dependency>
+
+  </dependencies>
+
+```
+
+#### 添加feign接口
+
+```java
+@FeignClient(name = "name-service")
+public interface MsNameService {
+    @GetMapping("/name")
+    String getName(@RequestParam(value = "delay", defaultValue = "0") int delayValue);
+}
+```
+
+#### 新建消费者greeting-service  依赖以及插件
+
+```xml
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-kubernetes-client-loadbalancer</artifactId>
+        </dependency>
+        <!--   spring-cloud-kubernetes 服务发现依赖    -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-kubernetes-client-discovery</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
 
 
+        <dependency>
+            <groupId>org.jolokia</groupId>
+            <artifactId>jolokia-core</artifactId>
+        </dependency>
+        <!-- 生产者api模块 -->
+         <dependency>
+            <groupId>org.example</groupId>
+            <artifactId>name-service-api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+    </dependencies>
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot-version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>kubernetes</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${jkube.version}</version>
+
+                        <configuration>
+                            <resources>
+                                <labels>
+                                    <all>
+                                        <testProject>spring-boot-sample</testProject>
+                                    </all>
+                                </labels>
+                                <serviceAccounts>
+                                    <serviceAccount>
+                                        <!-- 沿用之前新建的spring账户 具有view权限 -->
+                                        <name>spring</name>
+                                        <deploymentRef>${project.artifactId}</deploymentRef>
+                                    </serviceAccount>
+                                </serviceAccounts>
+                            </resources>
+
+                            <generator>
+                                <includes>
+                                    <include>spring-boot</include>
+                                </includes>
+                                <config>
+                                    <spring-boot>
+                                        <color>always</color>
+                                    </spring-boot>
+                                </config>
+                            </generator>
+                            <enricher>
+                                <excludes>
+                                    <exclude>jkube-expose</exclude>
+                                </excludes>
+                                <config>
+                                    <jkube-service>
+                                        <type>NodePort</type>
+                                    </jkube-service>
+                                </config>
+                            </enricher>
+                        </configuration>
+
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>resource</goal>
+                                    <goal>build</goal>
+                                    <goal>helm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+```
+
+#### App.java  
+
+构建loadbalancer
+
+```java
+@SpringBootApplication
+@EnableDiscoveryClient
+@EnableFeignClients(basePackages = "example")
+public class App {
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+
+   	@LoadBalanced
+    @Bean
+    RestTemplate loadBalancedWebClientBuilder() {
+        return new RestTemplateBuilder().build();
+    }
+}
+
+```
+
+#### GreetingController.java  
+
+调用nameService
+
+```java
+@RestController
+public class GreetingController {
+
+
+    private final MsNameService msNameService;
+
+    public GreetingController(MsNameService msNameService) {
+        this.msNameService = msNameService;
+    }
+
+    @GetMapping("/greeting")
+    public String getGreeting(@RequestParam(value = "delay", defaultValue = "0") int delay) {
+        return String.format("Hello from %s!", msNameService.getName(delay));
+    }
+
+}
+```
+
+#### 部署验证
+
+进入spring-cloud-loadbalancer目录
+
+```shell
+# 构建部署
+mvn k8s:deploy -Pkubernetes
+#[INFO] k8s: HINT: Use the command `kubectl get pods -w` to watch your pods start up
+#[INFO] ------------------------------------------------------------------------
+#[INFO] Reactor Summary for spring-cloud-loadbalancer 1.0-SNAPSHOT:
+#[INFO]
+#[INFO] spring-cloud-loadbalancer .......................... SUCCESS [ 14.484 s]
+#[INFO] greeting-service ................................... SUCCESS [01:24 min]
+#[INFO] name-service ....................................... SUCCESS [01:41 min]
+#[INFO] ------------------------------------------------------------------------
+#[INFO] BUILD SUCCESS
+#[INFO] ------------------------------------------------------------------------
+#[INFO] Total time:  03:22 min
+#[INFO] Finished at: 2022-08-23T14:54:56+08:00
+#[INFO] ------------------------------------------------------------------------
+
+# 查看
+kubectl get pod
+#NAME                                   READY   STATUS    RESTARTS      AGE
+#greeting-service-58d9ff665d-x6svm      1/1     Running   0             10m
+#name-service-d577c996c-hnbds           1/1     Running   0             9m49s
+
+# 转发端口
+kubectl port-forward greeting-service-58d9ff665d-x6svm 8080:8080
+# 请求验证
+curl localhost:8080/greeting
+# Hello from name-service-d577c996c-hnbds!
+
+# 新增一个name-service 的pod
+kubectl scale --replicas=2 deployment name-service
+# 查看两个pod
+kc get endpoints/name-service
+#NAME           ENDPOINTS                          AGE
+#name-service   172.17.0.10:8080,172.17.0.9:8080   34m
+
+# 请求并设置延时
+curl localhost:8080/gretting?delay=3000
+#Hello from name-service-d577c996c-hnbds!
+# 同时再次发起
+curl localhost:8080/gretting
+#Hello from name-service-d577c996c-whxth!
+```
 
 
 

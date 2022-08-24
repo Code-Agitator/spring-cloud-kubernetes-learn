@@ -10,6 +10,7 @@
     <modules>
         <module>spring-cloud-k8s</module>
         <module>spring-cloud-leader</module>
+        <module>spring-cloud-loadbalancer</module>
     </modules>
     <packaging>pom</packaging>
 
@@ -24,6 +25,7 @@
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <kubernetes.maven.plugin.version>1.6.0</kubernetes.maven.plugin.version>
         <jkube.version>1.8.0</jkube.version>
+        <java.version>8</java.version>
     </properties>
     <!--依赖版本管理-->
     <dependencyManagement>
