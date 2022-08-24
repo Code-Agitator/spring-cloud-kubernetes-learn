@@ -11,6 +11,7 @@
         <module>spring-cloud-k8s</module>
         <module>spring-cloud-leader</module>
         <module>spring-cloud-loadbalancer</module>
+        <module>spring-cloud-configuration-watcher-demo</module>
     </modules>
     <packaging>pom</packaging>
 

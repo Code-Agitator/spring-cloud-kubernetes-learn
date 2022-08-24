@@ -1061,10 +1061,115 @@ curl localhost:8080/gretting
 #Hello from name-service-d577c996c-whxth!
 ```
 
+## Security Configurations  k8s中的安全配置
+
+#### namespace
+
+K8s 可以通过NAMESPACE去区分命名空间，配置namespace的方式：
+
+* Jkube:
+
+```xml
+ <profiles>
+        <profile>
+            <id>kubernetes</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${jkube.version}</version>
+
+                        <configuration>
+                 			<namespace>my-namespace</namespace>
+                        </configuration>
+
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+```
+
+#### promession
+
+Spring-cloud-kubenetes 的服务发现以及configMap等都是基于对kubenetes中API来实现的，所以需要为spring-boot程序配置相应的server account 以及 权限
+
+以下是不同依赖对于权限的要求，对于对应的资源，都需要对应的'get','list','watch'权限
+
+| Dependency                                     | Resources                 |
+| :--------------------------------------------- | :------------------------ |
+| spring-cloud-starter-kubernetes-fabric8        | pods, services, endpoints |
+| spring-cloud-starter-kubernetes-fabric8-config | configmaps, secrets       |
+| spring-cloud-starter-kubernetes-client         | pods, services, endpoints |
+| spring-cloud-starter-kubernetes-client-config  | configmaps, secrets       |
+
+为default用户添加上述权限的示例：
+
+* 创建一个server account
+
+```shell
+kubectl create namespace my-namespace
+# namespace/my-namespace created
+kubectl create serviceaccount spring-security -n my-namespace
+# serviceaccount/spring-security created
+```
+
+* 添加角色
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: my-namespace
+  name: namespace-reader
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "pods", "services", "endpoints", "secrets"]
+    verbs: ["get", "list", "watch"]
+
+```
+
+```shell
+kubectl apply -f addRole.yml
+# role.rbac.authorization.k8s.io/namespace-reader created
+```
+
+* 将default设置为我们刚才添加的角色
+
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: namespace-reader-binding
+  namespace: my-namespace
+subjects:
+- kind: ServiceAccount
+  name: spring-security
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: namespace-reader
+  apiGroup: ""
+```
+
+```shell
+kubectl apply -f roleBinding.yml 
+# rolebinding.rbac.authorization.k8s.io/namespace-reader-binding created
+```
+
+* 查看
+
+```shell
+kubectl get sa -n my-namespace
+#NAME              SECRETS   AGE
+#default           1         9m42s
+#spring-security   1         9m27s
+```
 
 
 
+## 服务注册
 
-
+`spring.cloud.service-registry.auto-registration.enabled` 和`@EnableDiscoveryClient(autoRegister=false)`都可以控制服务是否自动注册
 
 mvn -s "/mnt/d/linux/settings-linux.xml"

@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: spring-cloud-configuration-watcher-demo
+  cloud:
+    kubernetes:
+      config:
+        enabled: true
+        sources:
+          - namespace: default
+            name: spring-cloud-configuration-watcher-demo
+      reload:
+        enabled: true
+        strategy: restart_context

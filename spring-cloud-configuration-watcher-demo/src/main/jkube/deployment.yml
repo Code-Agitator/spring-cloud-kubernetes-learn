@@ -1,0 +1,25 @@
+metadata:
+  name: demo
+spec:
+  selector:
+    matchLabels:
+      run: demo
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        run: demo
+    spec:
+      serviceAccountName: spring-cloud-kubernetes-configuration-watcher
+      containers:
+        - volumeMounts:
+            - name: config
+              mountPath: /deployments/config
+      volumes:
+        - name: config
+          configMap:
+            name: ${project.artifactId}
