@@ -1,5 +1,13 @@
 # Getting Start
 
+## 前言
+
+如果是在本地WSL运行，并且本地配置了maven，我建议cp一个配置文件，然后修改仓库路径为/mnt/+windows下的路径
+
+否则他会在当前目录下载依赖并且没法用
+
+mvn [commond] -s "/mnt/d/linux/settings-linux.xml"
+
 ## 前置条件
 
 * docker
@@ -268,6 +276,8 @@ spring:
     </profiles>
 ```
 
+#### 部署
+
 部分命令介绍：(这里前两个 不说了 玩最后一个)
 
 PS: 由于使用的是本地docker仓库，需要执行以下命令，才能是minikube可以从本地仓库拉取镜像，每次都需要在部署的终端下执行
@@ -377,7 +387,7 @@ public String  getMessage(){
 }
 ```
 
-#### 新建文件src/jkube/configmap.xml
+#### 新建文件src/jkube/configmap.yml
 
 ```yaml
 metadata:
@@ -430,6 +440,111 @@ kubectl port-forward spring-cloud-k8s-86bc95d68c-c5btk 8080:8080
 
 curl localhost:8080/config
 # Say Hello to the World
+```
+
+## ConfigMap热刷新
+
+#### 添加AppProperties.java
+
+亲测如果使用@Value()的方式 即使添加了@RefreshScope 也无法热刷新
+
+```java
+@RefreshScope
+@ConfigurationProperties(prefix = "greeting")
+public class AppProperties {
+    String message;
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+}
+
+```
+
+#### 改写App.java
+
+```java
+  	@Resource
+    AppProperties appProperties;
+
+ 	@GetMapping("/config")
+    public String getMessage() {
+        return appProperties.getMessage();
+    }
+```
+
+#### 添加applicatoin.yml配置
+
+```yaml
+spring:
+  application:
+    name: spring-cloud-k8s
+management:
+  endpoint:
+    refresh:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+```
+
+#### 添加bootstrap.yml配置
+
+```yaml
+spring:
+  cloud:
+    kubernetes:
+      config:
+        enabled: true
+        sources:
+          - namespace: default
+          	# 对应的configMap 的name
+            name: spring-cloud-k8s
+      reload:
+        enabled: true
+        # 更新策略  
+        strategy: refresh
+        # 监听 configMap变化
+        monitoring-config-maps: true
+        mode: event
+```
+
+#### 重新部署与验证
+
+```shell
+mvn k8s:deploy -Pkubernetes 
+# 删除原来的pod 让他重新部署
+kubectl delete -n default pod spring-cloud-k8s-85b7b79766-p7h6q
+# 转发端口
+kubectl port-forward spring-cloud-k8s-85b7b79766-p7h6q 8080:8080 
+
+# 请求
+curl localhost:8080/config
+# Say Hello to the World
+```
+
+#### 修改configmap
+
+```yaml
+metadata:
+  name: ${project.artifactId}
+data:
+  application.yml: |-
+    greeting:
+      message: Say GoodBey to the World
+```
+
+#### 应用修改并查看
+
+```shell
+kubectl apply -f configmap.yml
+curl localhost:8080/config
+# Say GoodBey to the World
 ```
 
 ## 查看Pod信息
@@ -1172,4 +1287,147 @@ kubectl get sa -n my-namespace
 
 `spring.cloud.service-registry.auto-registration.enabled` 和`@EnableDiscoveryClient(autoRegister=false)`都可以控制服务是否自动注册
 
-mvn -s "/mnt/d/linux/settings-linux.xml"
+## 配置中心观察器
+
+在前面的ConfigMap中，我们配置的ConfigMap热更新是旧的实现，官方在2020.*之后的版本已经放弃的更新，并且推荐使用Spring Cloud Kubernetes Configuration Watcher 部署到k8s平台上通知到k8s中的服务进行配置更新，其本质是通过/actuator/refresh来通知服务进行配置刷新
+
+#### 部署Spring Cloud Kubernetes Configuration Watcher到k8s
+
+* 新建deployment.yml (kubectl apply -fdeployment.yml )
+
+这个部署文件做了几件事情：
+
+1. 新建了Service指定端口为8888
+2. 新建了一个service account 
+3. 新建了一个role和RoleBinding
+4. 为新建的role赋予一些资源和权限
+5. 使用官方镜像部署服务
+
+```yaml
+---
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: spring-cloud-kubernetes-configuration-watcher
+      name: spring-cloud-kubernetes-configuration-watcher
+    spec:
+      ports:
+        - name: http
+          port: 8888
+          targetPort: 8888
+      selector:
+        app: spring-cloud-kubernetes-configuration-watcher
+      type: ClusterIP
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: spring-cloud-kubernetes-configuration-watcher
+      name: spring-cloud-kubernetes-configuration-watcher
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      labels:
+        app: spring-cloud-kubernetes-configuration-watcher
+      name: spring-cloud-kubernetes-configuration-watcher:view
+    roleRef:
+      kind: Role
+      apiGroup: rbac.authorization.k8s.io
+      name: namespace-reader
+    subjects:
+      - kind: ServiceAccount
+        name: spring-cloud-kubernetes-configuration-watcher
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      namespace: default
+      name: namespace-reader
+    rules:
+      - apiGroups: ["", "extensions", "apps"]
+        resources: ["configmaps", "pods", "services", "endpoints", "secrets"]
+        verbs: ["get", "list", "watch"]
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: spring-cloud-kubernetes-configuration-watcher-deployment
+    spec:
+      selector:
+        matchLabels:
+          app: spring-cloud-kubernetes-configuration-watcher
+      template:
+        metadata:
+          labels:
+            app: spring-cloud-kubernetes-configuration-watcher
+        spec:
+          serviceAccount: spring-cloud-kubernetes-configuration-watcher
+          containers:
+          - name: spring-cloud-kubernetes-configuration-watcher
+            image: springcloud/spring-cloud-kubernetes-configuration-watcher:2.0.1-SNAPSHOT
+            imagePullPolicy: IfNotPresent
+            readinessProbe:
+              httpGet:
+                port: 8888
+                path: /actuator/health/readiness
+            livenessProbe:
+              httpGet:
+                port: 8888
+                path: /actuator/health/liveness
+            ports:
+            - containerPort: 8888
+```
+
+#### 修改bootstrap.yml
+
+关闭reload
+
+```yaml
+spring:
+  cloud:
+    kubernetes:
+      config:
+        enabled: true
+        sources:
+          - namespace: default
+            name: spring-cloud-k8s
+      reload:
+#        enabled: true
+        strategy: refresh
+        monitoring-config-maps: true
+        mode: event
+```
+
+#### 新建configMap.yml
+
+${project.artifactId}是对应的configmap 的name 自行修改
+
+这里的重点是添加了一个label   spring.cloud.kubernetes.config: "true"
+
+configmap watcher就是通过这个label去决定要不要通知其他服务更新
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${project.artifactId}
+  labels:
+    spring.cloud.kubernetes.config: "true"
+data:
+  application.yml: |-
+    greeting:
+      message: Say Hello from one
+```
+
+## 扩展
+
+#### [Spring Cloud Kubernetes Config Server](https://docs.spring.io/spring-cloud-kubernetes/docs/current/reference/html/#spring-cloud-kubernetes-configserver)
+
+spring-cloud-config-server在kubernetes中的实现，hello world部署非常简单，使用官方提供的部署配置即可
+
+#### [Spring Cloud Kubernetes Discovery Server](https://docs.spring.io/spring-cloud-kubernetes/docs/current/reference/html/#spring-cloud-kubernetes-discoveryserver)
+
+可以获取应用已经实例的信息,部署同上
+

@@ -7,7 +7,4 @@ metadata:
 data:
   application.properties: |-
     bean.message=Hello World! updated 865
-    management.server.port=8080
-    management.endpoints.web.exposure.include=*
-    management.endpoints.web.tags.application=${spring.application.name}
     logging.level.org.springframework.cloud.kubernetes=DEBUG

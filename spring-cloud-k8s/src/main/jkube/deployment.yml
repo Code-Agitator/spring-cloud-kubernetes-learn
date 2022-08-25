@@ -9,11 +9,11 @@ spec:
         - name: config
           configMap:
             name: ${project.artifactId}
-            items:
-              - key: application.yml
-                path: application.yml
       containers:
         - volumeMounts:
             - name: config
               mountPath: /deployments/config
+          env:
+            - name: TZ
+              value: Asia/Shanghai
       serviceAccount: spring

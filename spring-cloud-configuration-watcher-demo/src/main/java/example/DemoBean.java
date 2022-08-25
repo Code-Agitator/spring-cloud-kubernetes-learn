@@ -14,8 +14,8 @@ public class DemoBean {
     @Autowired
     private DemoProperties config;
 
-    @Scheduled(fixedDelay = 5000)
-    public void hello() {
+    public String hello() {
         System.out.println((new Date()).toString() + ": Now processing on " + config.getMessage());
+        return config.getMessage();
     }
 }

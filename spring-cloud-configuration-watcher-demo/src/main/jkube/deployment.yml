@@ -19,6 +19,9 @@ spec:
         - volumeMounts:
             - name: config
               mountPath: /deployments/config
+          env:
+            - name: TZ
+              value: Asia/Shanghai
       volumes:
         - name: config
           configMap:

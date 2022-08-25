@@ -9,5 +9,7 @@ spring:
           - namespace: default
             name: spring-cloud-configuration-watcher-demo
       reload:
-        enabled: true
-        strategy: restart_context
+#        enabled: true
+        strategy: refresh
+        monitoring-config-maps: true
+        mode: event

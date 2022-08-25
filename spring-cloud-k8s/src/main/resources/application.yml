@@ -1,10 +1,11 @@
 spring:
   application:
-    name: kubernetes-hello-world
-  cloud:
-    kubernetes:
-      config:
-        enable-api: true
-        enabled: true
-        sources:
-          - name: application.yml
+    name: spring-cloud-k8s
+management:
+  endpoint:
+    refresh:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
