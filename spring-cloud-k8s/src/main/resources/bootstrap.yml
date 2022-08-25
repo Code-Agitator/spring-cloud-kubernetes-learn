@@ -1,0 +1,13 @@
+spring:
+  cloud:
+    kubernetes:
+      config:
+        enabled: true
+        sources:
+          - namespace: default
+            name: spring-cloud-k8s
+      reload:
+#        enabled: true
+        strategy: refresh
+        monitoring-config-maps: true
+        mode: event
